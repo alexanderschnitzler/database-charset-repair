@@ -1,0 +1,7 @@
+/var
+/vendor
+/composer.lock
+/public
+/.mcp.json
+/.idea
+/Build/coverage

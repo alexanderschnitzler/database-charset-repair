@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.2/phpunit.xsd"
+         backupGlobals="true"
+         bootstrap="vendor/typo3/testing-framework/Resources/Core/Build/FunctionalTestsBootstrap.php"
+         cacheDirectory="var/cache/phpunit"
+         colors="true"
+         displayDetailsOnTestsThatTriggerDeprecations="true"
+         displayDetailsOnTestsThatTriggerErrors="true"
+         displayDetailsOnTestsThatTriggerNotices="true"
+         displayDetailsOnTestsThatTriggerWarnings="true"
+         failOnDeprecation="false"
+         failOnNotice="true"
+         failOnRisky="true"
+         failOnWarning="true"
+         requireCoverageMetadata="false"
+>
+    <testsuites>
+        <testsuite name="database_charset_repair">
+            <directory>Tests/Functional/</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>Classes/</directory>
+        </include>
+    </source>
+    <php>
+        <ini name="display_errors" value="1"/>
+        <env name="TYPO3_CONTEXT" value="Testing"/>
+        <!--
+            The command is MySQL/MariaDB only (CONVERT ... USING, information_schema, ALTER TABLE), so
+            sqlite is no option. These defaults suit a MariaDB or MySQL on the host with root/root, the
+            same credentials CI uses; runTests.sh and CI override them through real environment
+            variables, which take precedence.
+        -->
+        <env name="typo3DatabaseDriver" value="mysqli"/>
+        <env name="typo3DatabaseHost" value="127.0.0.1"/>
+        <env name="typo3DatabasePort" value="3306"/>
+        <env name="typo3DatabaseUsername" value="root"/>
+        <env name="typo3DatabasePassword" value="root"/>
+        <env name="typo3DatabaseName" value="functional"/>
+    </php>
+</phpunit>

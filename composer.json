@@ -1,0 +1,62 @@
+{
+    "name": "schnitzler/database-charset-repair",
+    "description": "A TYPO3 CLI command that repairs fake latin1, genuine cp1252 and double-encoded content column by column and moves the schema to utf8mb4",
+    "license": "GPL-2.0-or-later",
+    "type": "typo3-cms-extension",
+    "authors": [
+        {
+            "name": "Alexander Schnitzler",
+            "email": "git@alexanderschnitzler.de"
+        }
+    ],
+    "require": {
+        "php": "~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0",
+        "doctrine/dbal": "^4.3",
+        "symfony/console": "*",
+        "typo3/cms-core": "~13.4.0 || ~14.3.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.95",
+        "overtrue/phplint": "^9.7",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "typo3/testing-framework": "^9.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Schnitzler\\DatabaseCharsetRepair\\": "Classes/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Schnitzler\\DatabaseCharsetRepair\\Tests\\": "Tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "typo3/class-alias-loader": true,
+            "typo3/cms-composer-installers": true
+        },
+        "platform": {
+            "php": "8.2.99"
+        },
+        "sort-packages": true
+    },
+    "extra": {
+        "typo3/cms": {
+            "Package": {
+                "providesPackages": {}
+            },
+            "extension-key": "database_charset_repair",
+            "version": "1.0.0"
+        }
+    },
+    "scripts": {
+        "cs": "@php vendor/bin/php-cs-fixer fix --verbose --dry-run",
+        "cs:fix": "@php vendor/bin/php-cs-fixer fix --verbose",
+        "phplint": "@php vendor/bin/phplint",
+        "phpstan": "@php vendor/bin/phpstan -v analyse",
+        "phpunit:functional": "@php vendor/bin/phpunit --display-deprecations --display-phpunit-deprecations -c phpunit.functional.xml",
+        "phpunit:unit": "@php vendor/bin/phpunit --display-deprecations --display-phpunit-deprecations -c phpunit.unit.xml"
+    }
+}

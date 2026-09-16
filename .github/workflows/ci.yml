@@ -1,0 +1,109 @@
+name: CI
+
+on: [ push, pull_request ]
+
+jobs:
+  static:
+    # PHP only at both ends of the supported range: the code is not expected to behave differently
+    # between minor versions, and the engine matrix below is where the risk sits.
+    name: "static | PHP ${{ matrix.php }} | ${{ matrix.composerInstall }}"
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.2'
+            composerInstall: 'composerInstallLowest'
+          - php: '8.5'
+            composerInstall: 'composerInstallHighest'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: intl, mbstring, mysqli
+          coverage: none
+
+      - name: Composer install (lowest)
+        if: matrix.composerInstall == 'composerInstallLowest'
+        run: composer update --prefer-lowest --no-interaction --no-progress --prefer-dist
+
+      - name: Composer install (highest)
+        if: matrix.composerInstall == 'composerInstallHighest'
+        run: composer update --no-interaction --no-progress --prefer-dist
+
+      - name: phplint
+        run: composer phplint
+
+      - name: phpstan
+        run: composer phpstan
+
+      - name: php-cs-fixer
+        run: composer cs
+
+      - name: phpunit (unit)
+        run: composer phpunit:unit
+
+  functional:
+    # The command is MySQL/MariaDB specific SQL, so the database engine is the dimension that
+    # matters here: every MariaDB LTS from the TYPO3 13 floor up, both MySQL LTS lines and the
+    # current MySQL innovation release. PHP only at both ends of the supported range.
+    name: "functional | ${{ matrix.database }} | PHP ${{ matrix.setup.php }} | ${{ matrix.setup.composerInstall }}"
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - 'mariadb:10.4'
+          - 'mariadb:10.6'
+          - 'mariadb:10.11'
+          - 'mariadb:11.4'
+          - 'mariadb:11.8'
+          - 'mysql:8.0'
+          - 'mysql:8.4'
+          - 'mysql:9'
+        # A real second dimension. Two `include` entries would overwrite each other here and
+        # leave only the last one, so every engine gets both ends of the PHP range this way.
+        setup:
+          - { php: '8.2', composerInstall: 'composerInstallLowest' }
+          - { php: '8.5', composerInstall: 'composerInstallHighest' }
+    services:
+      database:
+        image: ${{ matrix.database }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping --protocol=tcp -h127.0.0.1 -uroot -proot --silent || mariadb-admin ping --protocol=tcp -h127.0.0.1 -uroot -proot --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      typo3DatabaseDriver: mysqli
+      typo3DatabaseHost: 127.0.0.1
+      typo3DatabasePort: 3306
+      typo3DatabaseUsername: root
+      typo3DatabasePassword: root
+      typo3DatabaseName: functional
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.setup.php }}
+          extensions: intl, mbstring, mysqli
+          coverage: none
+
+      - name: Composer install (lowest)
+        if: matrix.setup.composerInstall == 'composerInstallLowest'
+        run: composer update --prefer-lowest --no-interaction --no-progress --prefer-dist
+
+      - name: Composer install (highest)
+        if: matrix.setup.composerInstall == 'composerInstallHighest'
+        run: composer update --no-interaction --no-progress --prefer-dist
+
+      - name: phpunit (functional)
+        run: composer phpunit:functional

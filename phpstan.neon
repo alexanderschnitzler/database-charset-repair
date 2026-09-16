@@ -1,0 +1,19 @@
+includes:
+	- vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+	phpVersion: 80400
+	level: 8
+	tmpDir: var/cache/phpstan
+	treatPhpDocTypesAsCertain: false
+	reportWrongPhpDocTypeInVarTag: true
+
+	# Listed explicitly instead of analysing the whole project: functional test instances below
+	# public/ symlink the extension back into themselves, so walking the project root loops.
+	paths:
+		- %currentWorkingDirectory%/Classes
+		- %currentWorkingDirectory%/Configuration
+		- %currentWorkingDirectory%/Tests
+		- %currentWorkingDirectory%/ext_emconf.php
+
+	reportMaybesInPropertyPhpDocTypes: false
