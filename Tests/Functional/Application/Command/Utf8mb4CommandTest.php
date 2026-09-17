@@ -70,6 +70,28 @@ final class Utf8mb4CommandTest extends FixtureTestCase
     }
 
     #[Test]
+    public function columnOptionRepairsOnlyThatColumn(): void
+    {
+        $tester = $this->runCommand(['--column' => [self::TABLE . '.a_varchar'], '--fix' => true, '--threshold' => '0.5']);
+
+        self::assertSame(Command::SUCCESS, $tester->getStatusCode(), $tester->getDisplay());
+        self::assertStringNotContainsString('a_text', $tester->getDisplay());
+        self::assertSame(['a_varchar' => 'utf8mb4_unicode_ci', 'a_text' => 'latin1_swedish_ci'], $this->collationsOf(self::TABLE, 'a_varchar', 'a_text'));
+        $row = $this->hexOf(self::TABLE, 'a_varchar', 'a_text')[3];
+        self::assertSame('C3A4', $row['a_varchar']);
+        self::assertSame('E4', $row['a_text']);
+    }
+
+    #[Test]
+    public function columnOptionRefusesColumnOutOfScope(): void
+    {
+        $tester = $this->runCommand(['--column' => [self::TABLE . '.a_ascii', self::TABLE . '.nope']]);
+
+        self::assertSame(Command::FAILURE, $tester->getStatusCode());
+        self::assertStringContainsString('a_ascii, nope', $tester->getDisplay());
+    }
+
+    #[Test]
     public function secondRunHasNothingToDo(): void
     {
         $this->runCommand(['--table' => [self::TABLE], '--fix' => true, '--threshold' => '0.5']);

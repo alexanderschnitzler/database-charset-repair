@@ -25,6 +25,7 @@ Run it on a scratch copy of the database first, imported byte-faithfully from a 
 | `--threshold` | `0.9` | Share of a column's non-ASCII rows that must carry the double-encoding signature before the column is undoubled. Below it the column is reported for review with sample rows, and left alone. |
 | `--report` | none | CSV path. Every double-encoded row of every column, threshold or not, as `table,column,uid,before,after`. Written during analysis, so it can be reviewed before `--fix`. |
 | `--table` | all | Restrict to one table. Repeatable. |
+| `--column` | all | Restrict to one column, as `table.column`. Repeatable, implies `--table` for that table. Fails when the column is not in scope. |
 
 The exit code is non-zero when a column needs manual attention or a repair failed.
 

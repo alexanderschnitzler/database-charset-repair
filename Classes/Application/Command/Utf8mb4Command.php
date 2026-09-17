@@ -55,6 +55,7 @@ final class Utf8mb4Command extends Command
         $this->addOption('threshold', null, InputOption::VALUE_REQUIRED, 'Share of non-ASCII rows that must carry the double-encoding signature before a column is undoubled; below it the column is only reported for review', '0.9');
         $this->addOption('report', null, InputOption::VALUE_REQUIRED, 'CSV path: table,column,uid,before,after for every double-encoded row, threshold or not');
         $this->addOption('table', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Limit to this table, repeatable');
+        $this->addOption('column', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Limit to this column, as table.column, repeatable; implies --table for that table');
     }
 
     /**
@@ -92,6 +93,19 @@ final class Utf8mb4Command extends Command
         $threshold = (float)$input->getOption('threshold');
         $reportPath = $input->getOption('report');
         $tableFilter = $input->getOption('table');
+        $columnFilter = [];
+        foreach ($input->getOption('column') as $spec) {
+            if (substr_count($spec, '.') !== 1) {
+                $style->error('--column expects table.column, got "' . $spec . '".');
+
+                return Command::FAILURE;
+            }
+            [$table, $column] = explode('.', $spec);
+            $columnFilter[$table][] = $column;
+        }
+        if ($tableFilter === [] && $columnFilter !== []) {
+            $tableFilter = array_keys($columnFilter);
+        }
 
         $this->printConnectionInfo($style, $connection);
 
@@ -111,6 +125,16 @@ final class Utf8mb4Command extends Command
 
             $table = $schemaManager->introspectTableByUnquotedName($tableName);
             ['columns' => $columns, 'skipped' => $skipped] = $this->analyzer->columnsInScope($table);
+            if (isset($columnFilter[$tableName])) {
+                $missing = array_diff($columnFilter[$tableName], array_keys($columns));
+                if ($missing !== []) {
+                    $style->error('Not in scope of ' . $tableName . ' (unknown, no charset, or ascii): ' . implode(', ', $missing));
+
+                    return Command::FAILURE;
+                }
+                $columns = array_intersect_key($columns, array_flip($columnFilter[$tableName]));
+                $skipped = [];
+            }
             if ($columns === []) {
                 continue;
             }
