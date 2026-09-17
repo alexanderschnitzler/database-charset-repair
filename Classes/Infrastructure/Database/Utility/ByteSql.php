@@ -105,19 +105,20 @@ final class ByteSql
     }
 
     /**
-     * UPDATE that transcodes rows whose bytes are genuinely in the declared charset (runbook
-     * case 2, "genuine legacy") to UTF-8.
+     * UPDATE that transcodes rows whose bytes are genuinely in $sourceCharset (runbook case 2,
+     * "genuine legacy") to UTF-8.
      *
-     * Reads the column in its declared charset, whatever it is (latin1, latin2, cp1251, ...),
-     * converts to utf8mb4 and stores the bytes. Only rows matching needsTranscoding() are
+     * Reads the column as $sourceCharset, whatever it is (latin1, latin2, cp1251, ...): the
+     * declared charset, or the one --assume names for a utf8-family column that lost it.
+     * Converts to utf8mb4 and stores the bytes. Only rows matching needsTranscoding() are
      * touched, so rows that are already UTF-8 (fake
      * latin1) stay as they are. Meant to run on the column while it is binary and with strict
      * mode off, because a lossy CONVERT() inside an UPDATE is otherwise an error.
      */
-    public static function transcodeUpdate(string $quotedTable, string $quotedColumn, string $declaredCharset): string
+    public static function transcodeUpdate(string $quotedTable, string $quotedColumn, string $sourceCharset): string
     {
         return 'UPDATE ' . $quotedTable
-            . ' SET ' . $quotedColumn . ' = CONVERT(CONVERT(CONVERT(' . $quotedColumn . ' USING ' . $declaredCharset . ') USING utf8mb4) USING binary)'
+            . ' SET ' . $quotedColumn . ' = CONVERT(CONVERT(CONVERT(' . $quotedColumn . ' USING ' . $sourceCharset . ') USING utf8mb4) USING binary)'
             . ' WHERE ' . self::needsTranscoding($quotedColumn);
     }
 

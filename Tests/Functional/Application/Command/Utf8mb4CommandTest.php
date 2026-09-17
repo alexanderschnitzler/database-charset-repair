@@ -93,6 +93,17 @@ final class Utf8mb4CommandTest extends FixtureTestCase
     }
 
     #[Test]
+    public function assumeRefusesUtf8FamilyAndUnknownCharsets(): void
+    {
+        foreach (['utf8mb4', 'nope'] as $charset) {
+            $tester = $this->runCommand(['--table' => [self::TABLE], '--assume' => $charset]);
+
+            self::assertSame(Command::FAILURE, $tester->getStatusCode(), $charset);
+            self::assertStringContainsString('--assume must name a legacy charset', $tester->getDisplay());
+        }
+    }
+
+    #[Test]
     public function secondRunHasNothingToDo(): void
     {
         $this->runCommand(['--table' => [self::TABLE], '--fix' => true, '--threshold' => '0.5']);

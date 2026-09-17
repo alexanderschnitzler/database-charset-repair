@@ -55,6 +55,7 @@ final class Utf8mb4Command extends Command
         $this->addOption('threshold', null, InputOption::VALUE_REQUIRED, 'Share of non-ASCII rows that must carry the double-encoding signature before a column is undoubled; below it the column is only reported for review', '0.9');
         $this->addOption('report', null, InputOption::VALUE_REQUIRED, 'CSV path: table,column,uid,before,after for every double-encoded row, threshold or not');
         $this->addOption('table', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Limit to this table, repeatable');
+        $this->addOption('assume', null, InputOption::VALUE_REQUIRED, 'Charset to read invalid bytes in utf8/utf8mb3/utf8mb4 columns as (latin1, latin2, cp1251, ...). Without it such columns are refused. See Documentation/LegacyBytesInUtf8Columns.md');
         $this->addOption('column', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Limit to this column, as table.column, repeatable; implies --table for that table');
     }
 
@@ -91,6 +92,14 @@ final class Utf8mb4Command extends Command
             return Command::FAILURE;
         }
         $threshold = (float)$input->getOption('threshold');
+        $assume = $input->getOption('assume') === null ? null : strtolower((string)$input->getOption('assume'));
+        if ($assume !== null && (in_array($assume, ['utf8', 'utf8mb3', 'utf8mb4'], true)
+            || $connection->fetchOne('SELECT 1 FROM information_schema.CHARACTER_SETS WHERE CHARACTER_SET_NAME = ?', [$assume]) === false)
+        ) {
+            $style->error('--assume must name a legacy charset the server knows (latin1, latin2, cp1251, ...), got "' . $assume . '".');
+
+            return Command::FAILURE;
+        }
         $reportPath = $input->getOption('report');
         $tableFilter = $input->getOption('table');
         $columnFilter = [];
@@ -149,15 +158,19 @@ final class Utf8mb4Command extends Command
             $rows = [];
             $work = [];
             $reviewColumns = [];
+            $assumedColumns = [];
             foreach ($columns as $name => $column) {
                 $s = $stats[$name];
-                $plan = ColumnPlan::decide($column, $s, $threshold, $collation);
+                $plan = ColumnPlan::decide($column, $s, $threshold, $collation, $assume);
                 $hasManual = $hasManual || $plan->isManual();
                 if ($plan->needsRepair()) {
                     $work[$name] = $plan;
                 }
                 if ($plan->needsReview) {
                     $reviewColumns[] = $name;
+                }
+                if ($plan->transcodesFromAssumedCharset()) {
+                    $assumedColumns[] = $name;
                 }
 
                 $rows[] = [$name, $column->getCharset() . '/' . $column->getCollation(), $s->rows, $s->nonascii, $s->invalid, $s->doubled, $s->doubledSerialized, $plan->label()];
@@ -174,6 +187,13 @@ final class Utf8mb4Command extends Command
             foreach ($reviewColumns as $name) {
                 $style->writeln('<comment>review samples for ' . $name . ' (below threshold, not undoubled):</comment>');
                 foreach ($this->analyzer->doubleEncodedRows($connection, $tableName, $name, $table->hasColumn('uid'), limit: 5, truncate: 80) as $sample) {
+                    $style->writeln('  ' . json_encode($sample, JSON_UNESCAPED_UNICODE));
+                }
+            }
+
+            foreach ($assumedColumns as $name) {
+                $style->writeln('<comment>transcode samples for ' . $name . ' (invalid bytes read as ' . $assume . ', before as hex):</comment>');
+                foreach ($this->analyzer->transcodedRows($connection, $tableName, $name, $table->hasColumn('uid'), (string)$assume, limit: 5, truncate: 80) as $sample) {
                     $style->writeln('  ' . json_encode($sample, JSON_UNESCAPED_UNICODE));
                 }
             }

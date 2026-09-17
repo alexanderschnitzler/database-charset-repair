@@ -71,6 +71,31 @@ final class TableRepairerTest extends FixtureTestCase
     }
 
     #[Test]
+    public function repairTranscodesInvalidRowsOfAUtf8ColumnFromTheAssumedCharset(): void
+    {
+        $this->loadFixture(__DIR__ . '/Fixtures/TableRepairer/repair_assumed_schema.sql');
+        $table = 'tx_databasecharsetrepair_assumed';
+        $utf8Column = $this->connection()->createSchemaManager()->introspectTableByUnquotedName($table)->getColumn('a_text');
+        $this->loadFixture(__DIR__ . '/Fixtures/TableRepairer/repair_assumed_bytes.sql');
+        $analyzer = new TableAnalyzer();
+        $stats = $analyzer->collectStats($this->connection(), $table, ['a_text' => $utf8Column]);
+        $plan = ColumnPlan::decide($utf8Column, $stats['a_text'], 0.5, self::COLLATION, 'latin1');
+        $output = new BufferedOutput();
+
+        self::assertSame('redeclare +transcode (assumed latin1)', $plan->label());
+        $ok = (new TableRepairer())->repair($this->connection(), $output, $table, ['a_text' => $plan], self::COLLATION);
+
+        self::assertTrue($ok, $output->fetch());
+        self::assertSame([
+            1 => ['a_text' => 'C3A4'],                   // real latin1 ä: transcoded
+            2 => ['a_text' => 'C3A4'],                   // already UTF-8: untouched
+            3 => ['a_text' => '4DC3BC6C6C6572'],         // real latin1 Müller: transcoded
+            4 => ['a_text' => '4D69746172626569746572'], // ASCII: untouched
+        ], $this->hexOf($table, 'a_text'));
+        self::assertSame(['a_text' => self::COLLATION], $this->collationsOf($table, 'a_text'));
+    }
+
+    #[Test]
     public function failedRepairRollsBackTheSchemaAndRestoresStrictMode(): void
     {
         $this->loadFixture(__DIR__ . '/Fixtures/TableRepairer/repair_collision.sql');

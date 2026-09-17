@@ -115,14 +115,37 @@ final class TableAnalyzer
     public function doubleEncodedRows(Connection $connection, string $tableName, string $columnName, bool $hasUid, int|null $limit = null, int|null $truncate = null): array
     {
         $bytes = ByteSql::bytesOf($connection->quoteSingleIdentifier($columnName));
-        $before = 'CONVERT(' . $bytes . ' USING utf8mb4)';
-        $after = 'CONVERT(' . ByteSql::withOneLayerRemoved($bytes) . ' USING utf8mb4)';
+
+        return $this->sampleRows($connection, $tableName, $hasUid, 'CONVERT(' . $bytes . ' USING utf8mb4)', 'CONVERT(' . ByteSql::withOneLayerRemoved($bytes) . ' USING utf8mb4)', ByteSql::isDoubleEncoded($bytes), $limit, $truncate);
+    }
+
+    /**
+     * The rows --assume would transcode: every row of the column whose bytes are not valid UTF-8,
+     * with `before` as hex (the bytes have no readable form in the declared charset, that is the
+     * point) and `after` as the text they become when read as $sourceCharset. What to look at
+     * before trusting the assumption: wrong charset, wrong glyphs.
+     *
+     * @return list<array{uid: string, before: string, after: string}>
+     */
+    public function transcodedRows(Connection $connection, string $tableName, string $columnName, bool $hasUid, string $sourceCharset, int|null $limit = null, int|null $truncate = null): array
+    {
+        $quoted = $connection->quoteSingleIdentifier($columnName);
+        $bytes = ByteSql::bytesOf($quoted);
+
+        return $this->sampleRows($connection, $tableName, $hasUid, 'HEX(' . $bytes . ')', 'CONVERT(CONVERT(' . $bytes . ' USING ' . $sourceCharset . ') USING utf8mb4)', ByteSql::needsTranscoding($quoted), $limit, $truncate);
+    }
+
+    /**
+     * @return list<array{uid: string, before: string, after: string}>
+     */
+    private function sampleRows(Connection $connection, string $tableName, bool $hasUid, string $before, string $after, string $where, int|null $limit, int|null $truncate): array
+    {
         if ($truncate !== null) {
             $before = 'LEFT(' . $before . ', ' . $truncate . ')';
             $after = 'LEFT(' . $after . ', ' . $truncate . ')';
         }
         $sql = 'SELECT ' . ($hasUid ? 'uid' : '\'\' AS uid') . ', ' . $before . ' AS before_value, ' . $after . ' AS after_value'
-            . ' FROM ' . $connection->quoteSingleIdentifier($tableName) . ' WHERE ' . ByteSql::isDoubleEncoded($bytes)
+            . ' FROM ' . $connection->quoteSingleIdentifier($tableName) . ' WHERE ' . $where
             . ($limit !== null ? ' LIMIT ' . $limit : '');
 
         $rows = [];

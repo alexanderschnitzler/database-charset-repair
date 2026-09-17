@@ -24,6 +24,7 @@ Run it on a scratch copy of the database first, imported byte-faithfully from a 
 | `--collation` | `utf8mb4_unicode_ci` | Target collation. The charset is always utf8mb4. |
 | `--threshold` | `0.9` | Share of a column's non-ASCII rows that must carry the double-encoding signature before the column is undoubled. Below it the column is reported for review with sample rows, and left alone. |
 | `--report` | none | CSV path. Every double-encoded row of every column, threshold or not, as `table,column,uid,before,after`. Written during analysis, so it can be reviewed before `--fix`. |
+| `--assume` | none | Charset to read invalid bytes in `utf8`/`utf8mb3`/`utf8mb4` columns as (`latin1`, `latin2`, `cp1251`, …). Without it such columns are refused as `manual`. A guess the bytes cannot confirm, so the command prints sample rows; see [Documentation/LegacyBytesInUtf8Columns.md](Documentation/LegacyBytesInUtf8Columns.md). |
 | `--table` | all | Restrict to one table. Repeatable. |
 | `--column` | all | Restrict to one column, as `table.column`. Repeatable, implies `--table` for that table. Fails when the column is not in scope. |
 
@@ -40,9 +41,10 @@ Every column with a character set is inspected on its raw bytes (`CONVERT(col US
 | `ok` | Already utf8mb4 with the target collation, nothing wrong with the bytes. |
 | `redeclare` | Bytes are fine, only the declaration is wrong (fake latin1, utf8mb3, wrong collation). Re-declared without transcoding. |
 | `redeclare +transcode` | Some rows are genuine legacy bytes in the declared charset. Those rows, and only those, are transcoded from that charset, whichever it is. Rows that already hold valid UTF-8 are untouched, so a column with mixed history is handled row by row. |
+| `redeclare +transcode (assumed latin1)` | Same row repair in a column declared `utf8`/`utf8mb3`/`utf8mb4`, reading the invalid rows as the charset `--assume` names, since the declaration cannot name it. Five sample rows are printed, bytes as hex next to the text the assumption makes of them. |
 | `redeclare +undouble` | The column is double encoded. One layer is removed per pass, at most three passes, with the number of affected rows printed per pass. |
 | `… (review)` | Double-encoded rows exist but below the threshold. Five sample rows are printed with before and after; nothing is undoubled. Lower `--threshold`, ideally together with `--table`, when the samples say it is real. |
-| `manual` | Invalid bytes in a column that is already declared utf8, non-ASCII content in an ENUM/SET, or a column declared in a fixed-width charset (`utf16`, `utf16le`, `utf32`, `ucs2`). The command does not guess here. |
+| `manual` | Invalid bytes in a column that is already declared utf8 (unless `--assume` names their charset), non-ASCII content in an ENUM/SET, or a column declared in a fixed-width charset (`utf16`, `utf16le`, `utf32`, `ucs2`). The command does not guess here. |
 
 Columns declared `ascii` are skipped: that is a deliberate declaration (core's `sys_refindex.hash`, for instance), not a legacy accident. `BINARY`, `VARBINARY` and `BLOB` columns have no charset and are never in scope.
 
@@ -61,7 +63,7 @@ The decision is made from the bytes, and the bytes only answer one structural qu
 | Mixed history within one column (some rows UTF-8, some cp1252, some doubled) | yes | Every row is classified on its own bytes; only matching rows are touched by each `UPDATE` |
 | A single-byte declaration that lies about *which* single-byte charset (`latin1` holding `latin2` bytes) | no | Undecidable from bytes, every byte is valid in every single-byte charset. Transcoded as declared; wrong glyphs, but reversible |
 | Fixed-width declarations (`utf16`, `utf16le`, `utf32`, `ucs2`) | refused | ASCII in them is NUL-padded and NUL is valid UTF-8, so the content looks like fake latin1. Reported as `manual`, convert with `ALTER TABLE … MODIFY … CHARACTER SET utf8mb4` by hand, which is correct there because the declaration is truthful |
-| Invalid bytes in a column already declared utf8/utf8mb3/utf8mb4 | refused | Transcoding "from utf8" is meaningless. Reported as `manual` |
+| Invalid bytes in a column already declared utf8/utf8mb3/utf8mb4 | with `--assume` | The declaration cannot name the charset the bytes are in, so the command does not guess. Reported as `manual` until `--assume latin1` (or whichever single-byte charset the site had) supplies it; then the same per-row `+transcode`. [Documentation/LegacyBytesInUtf8Columns.md](Documentation/LegacyBytesInUtf8Columns.md) walks through the bytes |
 | Non-ASCII content in ENUM/SET | refused | The declaration itself would need new values. Reported as `manual` |
 
 In short: any truthful declaration is transcoded correctly, the fake-latin1 pattern is caught under any single-byte declaration, and double encoding is caught only when it went through cp1252, which is the common case in TYPO3 installations but not the only possible one.

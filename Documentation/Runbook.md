@@ -14,8 +14,11 @@ Everything reduces to these. Each needs a *different* fix.
 | 1 | **Fake latin1** | Valid UTF-8 bytes in a latin1 column (connection was latin1 → pass-through) | Metadata only, BLOB round-trip |
 | 2 | **Real legacy** | Genuine cp1252/latin1 bytes in a latin1 column | `CONVERT TO CHARACTER SET` |
 | 3 | **Double encoded** | UTF-8 read as cp1252 and re-encoded. `ä` = `C3 83 C2 A4` instead of `C3 A4` | Per-row `UPDATE`, one layer per pass |
+| 2b | **Legacy bytes under a utf8 label** | Case 2 whose column was later declared utf8 without transcoding; the declaration no longer names the charset | Case 2 with `--assume`, see [LegacyBytesInUtf8Columns.md](LegacyBytesInUtf8Columns.md) |
 
-Case 1 and 2 are cheap. Only case 3 is a real data rewrite.
+Case 1 and 2 are cheap. Only case 3 is a real data rewrite. Case 2b is case 2 with one
+piece of information missing, and a current server cannot even produce it any more; the
+linked document has the byte walkthrough and the measurements.
 
 ---
 

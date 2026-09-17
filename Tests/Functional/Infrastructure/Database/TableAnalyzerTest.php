@@ -63,6 +63,21 @@ final class TableAnalyzerTest extends FixtureTestCase
     }
 
     #[Test]
+    public function transcodedRowsListsInvalidRowsAsHexWithTheTextTheAssumedCharsetMakesOfThem(): void
+    {
+        $this->loadFixture(__DIR__ . '/Fixtures/TableAnalyzer/transcoded_rows.sql');
+
+        $latin1 = (new TableAnalyzer())->transcodedRows($this->connection(), 'tx_databasecharsetrepair_transcoded', 'value', hasUid: true, sourceCharset: 'latin1');
+        $cp1251 = (new TableAnalyzer())->transcodedRows($this->connection(), 'tx_databasecharsetrepair_transcoded', 'value', hasUid: true, sourceCharset: 'cp1251', limit: 1, truncate: 2);
+
+        self::assertSame([
+            ['uid' => '1', 'before' => 'E4', 'after' => 'ä'],
+            ['uid' => '3', 'before' => '4DFC6C6C6572', 'after' => 'Müller'],
+        ], $latin1);
+        self::assertSame([['uid' => '1', 'before' => 'E4', 'after' => 'д']], $cp1251, 'same byte, other charset, other glyph: what the samples are for');
+    }
+
+    #[Test]
     public function doubleEncodedRowsCanBeLimitedAndTruncatedAndWorksWithoutUid(): void
     {
         $this->loadFixture(__DIR__ . '/Fixtures/TableAnalyzer/double_encoded_rows.sql');

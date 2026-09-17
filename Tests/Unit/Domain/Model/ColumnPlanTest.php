@@ -28,7 +28,7 @@ final class ColumnPlanTest extends TestCase
     private const COLLATION = 'utf8mb4_unicode_ci';
 
     /**
-     * @return iterable<string, array{0: Column, 1: ColumnStats, 2: float, 3: string, 4: bool, 5: bool}>
+     * @return iterable<string, array{0: Column, 1: ColumnStats, 2: float, 3: string, 4: bool, 5: bool, 6?: string}>
      */
     public static function decisions(): iterable
     {
@@ -61,13 +61,25 @@ final class ColumnPlanTest extends TestCase
             self::column('utf8mb4', self::COLLATION), self::stats(nonascii: 10, doubled: 1), 0.9, 'ok (review)', false, false,
         ];
         yield 'invalid bytes in a utf8 column' => [
-            self::column('utf8', 'utf8_general_ci'), self::stats(nonascii: 1, invalid: 1), 0.9, 'manual (invalid bytes in a utf8 column)', false, true,
+            self::column('utf8', 'utf8_general_ci'), self::stats(nonascii: 1, invalid: 1), 0.9, 'manual (invalid bytes in a utf8 column, see --assume)', false, true,
         ];
         yield 'invalid bytes in a utf8mb3 column' => [
-            self::column('utf8mb3', 'utf8mb3_general_ci'), self::stats(nonascii: 1, invalid: 1), 0.9, 'manual (invalid bytes in a utf8mb3 column)', false, true,
+            self::column('utf8mb3', 'utf8mb3_general_ci'), self::stats(nonascii: 1, invalid: 1), 0.9, 'manual (invalid bytes in a utf8mb3 column, see --assume)', false, true,
         ];
         yield 'invalid bytes in a utf8mb4 column' => [
-            self::column('utf8mb4', self::COLLATION), self::stats(nonascii: 1, invalid: 1), 0.9, 'manual (invalid bytes in a utf8mb4 column)', false, true,
+            self::column('utf8mb4', self::COLLATION), self::stats(nonascii: 1, invalid: 1), 0.9, 'manual (invalid bytes in a utf8mb4 column, see --assume)', false, true,
+        ];
+        yield 'invalid bytes in a utf8 column with --assume' => [
+            self::column('utf8', 'utf8_general_ci'), self::stats(nonascii: 1, invalid: 1), 0.9, 'redeclare +transcode (assumed latin1)', true, false, 'latin1',
+        ];
+        yield 'invalid bytes in a utf8mb4 column with --assume, nothing to redeclare' => [
+            self::column('utf8mb4', self::COLLATION), self::stats(nonascii: 1, invalid: 1), 0.9, 'redeclare +transcode (assumed cp1251)', true, false, 'cp1251',
+        ];
+        yield 'latin1 column with invalid bytes ignores --assume' => [
+            self::column(), self::stats(nonascii: 3, invalid: 3), 0.9, 'redeclare +transcode', true, false, 'cp1251',
+        ];
+        yield 'utf8 enum with invalid bytes ignores --assume' => [
+            self::column('utf8', 'utf8_general_ci', Types::ENUM), self::stats(nonascii: 1, invalid: 1), 0.9, 'manual (invalid bytes in a utf8 column)', false, true, 'latin1',
         ];
         yield 'utf16 column, even with clean-looking bytes' => [
             self::column('utf16', 'utf16_general_ci'), self::stats(), 0.9, 'manual (fixed-width utf16 column, bytes cannot be classified)', false, true,
@@ -91,14 +103,22 @@ final class ColumnPlanTest extends TestCase
 
     #[Test]
     #[DataProvider('decisions')]
-    public function decide(Column $column, ColumnStats $stats, float $threshold, string $label, bool $needsRepair, bool $isManual): void
+    public function decide(Column $column, ColumnStats $stats, float $threshold, string $label, bool $needsRepair, bool $isManual, string|null $assume = null): void
     {
-        $plan = ColumnPlan::decide($column, $stats, $threshold, self::COLLATION);
+        $plan = ColumnPlan::decide($column, $stats, $threshold, self::COLLATION, $assume);
 
         self::assertSame($label, $plan->label());
         self::assertSame($needsRepair, $plan->needsRepair());
         self::assertSame($isManual, $plan->isManual());
         self::assertSame($column, $plan->column);
+    }
+
+    #[Test]
+    public function sourceCharsetIsTheDeclarationUnlessAssumedForUtf8Family(): void
+    {
+        self::assertSame('latin1', ColumnPlan::decide(self::column(), self::stats(invalid: 1), 0.9, self::COLLATION, 'cp1251')->sourceCharset);
+        self::assertSame('cp1251', ColumnPlan::decide(self::column('utf8', 'utf8_general_ci'), self::stats(invalid: 1), 0.9, self::COLLATION, 'cp1251')->sourceCharset);
+        self::assertSame('utf8', ColumnPlan::decide(self::column('utf8', 'utf8_general_ci'), self::stats(invalid: 1), 0.9, self::COLLATION)->sourceCharset);
     }
 
     #[Test]

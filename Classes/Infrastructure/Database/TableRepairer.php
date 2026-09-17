@@ -111,7 +111,7 @@ final class TableRepairer
             $quoted = $connection->quoteSingleIdentifier($name);
             if ($plan->transcode) {
                 $count = $connection->fetchOne('SELECT COUNT(*) FROM ' . $table . ' WHERE ' . ByteSql::needsTranscoding($quoted));
-                $lines[] = '-- ' . $count . ' row(s): ' . ByteSql::transcodeUpdate($table, $quoted, (string)$plan->column->getCharset()) . ';';
+                $lines[] = '-- ' . $count . ' row(s): ' . ByteSql::transcodeUpdate($table, $quoted, $plan->sourceCharset) . ';';
             }
             if ($plan->undouble) {
                 $count = $connection->fetchOne('SELECT COUNT(*) FROM ' . $table . ' WHERE ' . ByteSql::needsUndoubling($quoted));
@@ -152,7 +152,7 @@ final class TableRepairer
                 foreach ($plans as $name => $plan) {
                     $quoted = $connection->quoteSingleIdentifier($name);
                     if ($plan->transcode) {
-                        $sql = ByteSql::transcodeUpdate($table, $quoted, (string)$plan->column->getCharset());
+                        $sql = ByteSql::transcodeUpdate($table, $quoted, $plan->sourceCharset);
                         $output->writeln($sql);
                         $output->writeln('<info>' . $connection->executeStatement($sql) . '</info> row(s) affected.');
                     }
