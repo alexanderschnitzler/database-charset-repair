@@ -183,12 +183,15 @@ final class Utf8mb4Command extends Command
             }
         }
 
-        $alterDatabase = sprintf(
+        // The database default only belongs to a full run: after --table or --column the rest of
+        // the schema is still legacy and the default would claim otherwise.
+        $alterDatabase = $tableFilter === [] ? sprintf(
             'ALTER DATABASE %s CHARACTER SET = %s COLLATE = %s',
             $connection->quoteSingleIdentifier($database),
             ColumnPlan::TARGET_CHARSET,
             $collation,
-        );
+        ) : null;
+        $scopedNote = '<comment>ALTER DATABASE skipped: run without --table/--column once every table is utf8mb4.</comment>';
 
         $failed = false;
         if ($tablesToFix === []) {
@@ -199,14 +202,18 @@ final class Utf8mb4Command extends Command
                 $failed = !$this->repairer->repair($connection, $style, $tableName, $work, $collation) || $failed;
             }
             $style->section('ALTER DATABASE');
-            $style->writeln($alterDatabase);
-            $connection->executeStatement($alterDatabase);
+            if ($alterDatabase === null) {
+                $style->writeln($scopedNote);
+            } else {
+                $style->writeln($alterDatabase);
+                $connection->executeStatement($alterDatabase);
+            }
         } else {
             $style->section('Dry run');
             foreach ($tablesToFix as $tableName => $work) {
                 $style->writeln($this->repairer->dryRunStatements($connection, $tableName, $work, $collation));
             }
-            $style->writeln($alterDatabase . ';');
+            $style->writeln($alterDatabase === null ? $scopedNote : $alterDatabase . ';');
         }
 
         if ($reportPath !== null) {

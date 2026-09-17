@@ -75,7 +75,7 @@ Per table, with everything in the table's work set in one statement each:
 3. **Re-declare as utf8mb4** with the original types and lengths, plus the table default. `TEXT` stays `TEXT` instead of being promoted to `MEDIUMTEXT` the way `CONVERT TO` does, so the result still matches what `ext_tables.sql` declares.
 4. On any error the original declarations are restored. Bytes were never transcoded by the DDL, so that is a real rollback of the schema. Row repairs that already ran leave valid UTF-8 in a legacy-declared column, which is the fake-latin1 case, and a rerun picks it up cleanly.
 
-Finally `ALTER DATABASE` sets the default for future tables. A second run finds nothing to do.
+Finally `ALTER DATABASE` sets the default for future tables. It is skipped when the run was scoped with `--table` or `--column`, since the rest of the schema is still legacy then. A second run finds nothing to do.
 
 Everything is SQL. No row is fetched into PHP, no primary key is required, and MySQL's own latin1 table is used for the cp1252 transcoding, which maps all 256 bytes reversibly where PHP's `iconv` silently drops five of them.
 

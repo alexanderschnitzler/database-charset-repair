@@ -76,6 +76,7 @@ final class Utf8mb4CommandTest extends FixtureTestCase
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode(), $tester->getDisplay());
         self::assertStringNotContainsString('a_text', $tester->getDisplay());
+        self::assertStringContainsString('ALTER DATABASE skipped', $tester->getDisplay());
         self::assertSame(['a_varchar' => 'utf8mb4_unicode_ci', 'a_text' => 'latin1_swedish_ci'], $this->collationsOf(self::TABLE, 'a_varchar', 'a_text'));
         $row = $this->hexOf(self::TABLE, 'a_varchar', 'a_text')[3];
         self::assertSame('C3A4', $row['a_varchar']);
