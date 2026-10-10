@@ -75,7 +75,7 @@ final class TableRepairerTest extends FixtureTestCase
     {
         $this->loadFixture(__DIR__ . '/Fixtures/TableRepairer/repair_assumed_schema.sql');
         $table = 'tx_databasecharsetrepair_assumed';
-        $utf8Column = $this->connection()->createSchemaManager()->introspectTableByUnquotedName($table)->getColumn('a_text');
+        $utf8Column = $this->connection()->createSchemaManager()->introspectTable($table)->getColumn('a_text');
         $this->loadFixture(__DIR__ . '/Fixtures/TableRepairer/repair_assumed_bytes.sql');
         $analyzer = new TableAnalyzer();
         $stats = $analyzer->collectStats($this->connection(), $table, ['a_text' => $utf8Column]);
@@ -93,6 +93,21 @@ final class TableRepairerTest extends FixtureTestCase
             4 => ['a_text' => '4D69746172626569746572'], // ASCII: untouched
         ], $this->hexOf($table, 'a_text'));
         self::assertSame(['a_text' => self::COLLATION], $this->collationsOf($table, 'a_text'));
+    }
+
+    #[Test]
+    public function repairKeepsTextExpressionDefaults(): void
+    {
+        $this->loadFixture(__DIR__ . '/Fixtures/TableRepairer/repair_text_defaults.sql');
+        $table = 'tx_databasecharsetrepair_textdefaults';
+        $output = new BufferedOutput();
+
+        $ok = (new TableRepairer())->repair($this->connection(), $output, $table, $this->plans($table, 'a_null', 'a_foo'), self::COLLATION);
+
+        self::assertTrue($ok, $output->fetch());
+        $this->connection()->executeStatement('INSERT INTO ' . $table . ' (uid) VALUES (99)');
+        self::assertNull($this->connection()->fetchOne('SELECT a_null FROM ' . $table . ' WHERE uid = 99'));
+        self::assertSame('666F6F', $this->hexOf($table, 'a_foo')[99]['a_foo']);
     }
 
     #[Test]
@@ -126,7 +141,7 @@ final class TableRepairerTest extends FixtureTestCase
     private function plans(string $table, string ...$columns): array
     {
         $analyzer = new TableAnalyzer();
-        $introspected = $this->connection()->createSchemaManager()->introspectTableByUnquotedName($table);
+        $introspected = $this->connection()->createSchemaManager()->introspectTable($table);
         $inScope = $analyzer->columnsInScope($introspected)['columns'];
         $stats = $analyzer->collectStats($this->connection(), $table, $inScope);
 

@@ -24,7 +24,7 @@ final class TableAnalyzerTest extends FixtureTestCase
     public function columnsInScopeKeepsCharsetColumnsAndSkipsDeliberateCharsets(): void
     {
         $this->loadFixture(__DIR__ . '/Fixtures/TableAnalyzer/columns_in_scope.sql');
-        $table = $this->connection()->createSchemaManager()->introspectTableByUnquotedName('tx_databasecharsetrepair_scope');
+        $table = $this->connection()->createSchemaManager()->introspectTable('tx_databasecharsetrepair_scope');
 
         ['columns' => $columns, 'skipped' => $skipped] = (new TableAnalyzer())->columnsInScope($table);
 
@@ -38,7 +38,7 @@ final class TableAnalyzerTest extends FixtureTestCase
     {
         $this->loadFixture(__DIR__ . '/Fixtures/TableAnalyzer/collect_stats.sql');
         $analyzer = new TableAnalyzer();
-        $table = $this->connection()->createSchemaManager()->introspectTableByUnquotedName('tx_databasecharsetrepair_stats');
+        $table = $this->connection()->createSchemaManager()->introspectTable('tx_databasecharsetrepair_stats');
 
         $stats = $analyzer->collectStats($this->connection(), 'tx_databasecharsetrepair_stats', $analyzer->columnsInScope($table)['columns']);
 

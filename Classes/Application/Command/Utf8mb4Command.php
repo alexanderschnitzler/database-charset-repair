@@ -132,7 +132,9 @@ final class Utf8mb4Command extends Command
                 continue;
             }
 
-            $table = $schemaManager->introspectTableByUnquotedName($tableName);
+            // ponytail: deprecated DBAL API on purpose, only it runs TYPO3's MySQL TEXT/BLOB default normalization;
+            // switch back once TYPO3 core normalizes in the DBAL 4.4 SchemaProvider path (removed in DBAL 5).
+            $table = $schemaManager->introspectTable($tableName);
             ['columns' => $columns, 'skipped' => $skipped] = $this->analyzer->columnsInScope($table);
             if (isset($columnFilter[$tableName])) {
                 $missing = array_diff($columnFilter[$tableName], array_keys($columns));
